@@ -17,6 +17,13 @@ export interface MediaAttachment {
   thumbnail?: string;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  userName: string;
+  timestamp: Date;
+}
+
 export interface Message {
   id: string;
   chatId: string; 
@@ -27,6 +34,15 @@ export interface Message {
   timestamp: Date;
   smartReplies?: string[];
   media?: MediaAttachment[];
+  reactions?: MessageReaction[];
+  status?: 'sending' | 'sent' | 'delivered' | 'read';
+  readBy?: { userId: string; userName: string; timestamp: Date }[];
+}
+
+export interface TypingUser {
+  userId: string;
+  userName: string;
+  timestamp: Date;
 }
 
 export interface Chat {
@@ -37,4 +53,14 @@ export interface Chat {
   messages: Message[];
   lastMessage?: Message;
   unreadCount?: number;
+  typingUsers?: TypingUser[];
+}
+
+export interface SearchFilters {
+  query?: string;
+  userId?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  mediaType?: 'image' | 'video' | 'audio' | 'file';
+  chatId?: string;
 }

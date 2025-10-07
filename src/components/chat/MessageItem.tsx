@@ -6,20 +6,33 @@ import { cn } from '@/src/lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '@/src/contexts/AuthContext';
 import MediaDisplay from './MediaDisplay';
+import MessageReactions from './MessageReactions';
+import MessageStatus from './MessageStatus';
 
 interface MessageItemProps {
   message: Message;
+  onAddReaction?: (messageId: string, emoji: string) => void;
+  onRemoveReaction?: (messageId: string, emoji: string) => void;
 }
 
-export default function MessageItem({ message }: MessageItemProps) {
+export default function MessageItem({ message, onAddReaction, onRemoveReaction }: MessageItemProps) {
   const { user: currentUser } = useAuth();
   const isCurrentUser = message.senderId === currentUser?.id;
 
   return (
-    <div className={cn("flex items-start gap-3 p-3 hover:bg-accent/10 transition-colors rounded-md", isCurrentUser ? "justify-end" : "justify-start")}>
+    <div 
+      className={cn("group flex items-start gap-3 p-3 hover:bg-accent/10 transition-colors rounded-md", isCurrentUser ? "justify-end" : "justify-start")}
+      data-message-id={message.id}
+    >
       {!isCurrentUser && (
         <Avatar className="h-10 w-10">
-          <AvatarImage src={message.senderAvatarUrl} alt={message.senderName}/>
+          <AvatarImage 
+            src={message.senderAvatarUrl} 
+            alt={message.senderName}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
           <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
@@ -40,13 +53,36 @@ export default function MessageItem({ message }: MessageItemProps) {
             </div>
           )}
         </div>
-        <span className={cn("mt-1 text-xs text-muted-foreground", isCurrentUser ? "mr-1" : "ml-1")}>
-          {format(new Date(message.timestamp), 'p')}
-        </span>
+        
+        {/* Message Reactions */}
+        <div className="mt-1">
+          <MessageReactions
+            messageId={message.id}
+            reactions={message.reactions || []}
+            onAddReaction={onAddReaction || (() => {})}
+            onRemoveReaction={onRemoveReaction || (() => {})}
+          />
+        </div>
+        
+        {/* Message Status and Timestamp */}
+        <div className={cn("flex items-center gap-2 mt-1", isCurrentUser ? "flex-row-reverse" : "flex-row")}>
+          <span className={cn("text-xs text-muted-foreground", isCurrentUser ? "mr-1" : "ml-1")}>
+            {format(new Date(message.timestamp), 'p')}
+          </span>
+          {isCurrentUser && (
+            <MessageStatus message={message} />
+          )}
+        </div>
       </div>
       {isCurrentUser && (
          <Avatar className="h-10 w-10">
-          <AvatarImage src={currentUser?.avatarUrl} alt={currentUser?.name}/>
+          <AvatarImage 
+            src={currentUser?.avatarUrl} 
+            alt={currentUser?.name}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
           <AvatarFallback>{currentUser?.name.substring(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}

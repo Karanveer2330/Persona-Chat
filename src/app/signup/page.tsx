@@ -18,20 +18,30 @@ export default function SignupPage() {
   const router = useRouter();
   const { login } = useAuth();
 
+  const parseResponseSafe = async (res: Response) => {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text || `${res.status} ${res.statusText}` };
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch("http://localhost:5000/api/users/register", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ username, password }),
-
+      // Use relative API path so Next.js rewrites proxy to the backend (avoids mixed-content on mobile)
+      const res = await fetch(`/api/users/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       });
-      const data = await res.json();
+      const data = await parseResponseSafe(res);
       if (!res.ok) {
-        setError(data.error || "Registration failed");
-        toast.error(data.error || "Registration failed");
+        setError(data.error || "Signup failed");
+        toast.error(data.error || "Signup failed");
         return;
       }
       // Log in the user in your context
@@ -40,12 +50,26 @@ export default function SignupPage() {
         name: data.user.username,
         avatarUrl: `https://placehold.co/100x100.png?text=${data.user.username.substring(0,2).toUpperCase()}`,
         isOnline: true,
+        isAnonymous: false, // Explicitly mark as not anonymous
       });
-      toast.success("Registration successful! Redirecting...");
+      toast.success("Signup successful! Redirecting...");
       router.push('/chat/global');
     } catch (err) {
-      setError("Registration failed");
-      toast.error("Registration failed");
+      console.error('Signup error:', err);
+      let errorMessage = "Signup failed";
+      
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMessage = "Request timed out. Please check your connection and try again.";
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = "Cannot connect to server. Please ensure the backend is running.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -69,6 +93,7 @@ export default function SignupPage() {
                 required 
               />
             </div>
+            
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input 

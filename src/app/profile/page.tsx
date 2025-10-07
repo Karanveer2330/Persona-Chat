@@ -64,7 +64,13 @@ export default function ProfilePage() {
       <Card className="w-full max-w-2xl shadow-xl">
         <CardHeader className="items-center text-center">
           <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2 ring-offset-background" data-ai-hint="profile avatar large">
-            <AvatarImage src={user.avatarUrl} alt={user.name} />
+            <AvatarImage 
+              src={user.avatarUrl} 
+              alt={user.name}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
             <AvatarFallback>{user.name.substring(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <CardTitle className="text-3xl font-headline">{isEditing ? "Edit Profile" : user.name}</CardTitle>
