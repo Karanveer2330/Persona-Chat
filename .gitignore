@@ -162,7 +162,6 @@ certs/
 *.bat
 
 # Server files (development only)
-server/
 server-https.js
 
 # Uploads directory (user-generated content)
