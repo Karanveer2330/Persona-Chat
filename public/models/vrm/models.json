@@ -1,0 +1,69 @@
+{
+  "models": [
+    {
+      "id": "fem1",
+      "name": "Fem1 Avatar",
+      "description": "Professional 3D female avatar with realistic facial features and smooth animations",
+      "url": "/models/vrm/Fem1.vrm",
+      "thumbnail": "/models/vrm/thumbnails/fem1.svg",
+      "size": "20MB",
+      "creator": "PersonaPlay3D",
+      "isDefault": true,
+      "features": ["Facial Tracking", "Lip Sync", "Eye Tracking", "Hand Gestures", "Body Tracking"],
+      "quality": "HD",
+      "version": "1.0"
+    },
+    {
+      "id": "fem2",
+      "name": "Fem2 Avatar",
+      "description": "Stylish 3D female avatar with modern design and advanced facial expressions",
+      "url": "/models/vrm/Fem2.vrm",
+      "thumbnail": "/models/vrm/thumbnails/fem2.svg",
+      "size": "21MB",
+      "creator": "PersonaPlay3D",
+      "isDefault": false,
+      "features": ["Facial Tracking", "Lip Sync", "Eye Tracking", "Hand Gestures", "Body Tracking"],
+      "quality": "HD",
+      "version": "1.0"
+    },
+    {
+      "id": "fem3",
+      "name": "Fem3 Avatar",
+      "description": "Premium 3D female avatar with enhanced features and smooth body animations",
+      "url": "/models/vrm/fem3.vrm",
+      "thumbnail": "/models/vrm/thumbnails/fem3.svg",
+      "size": "18MB",
+      "creator": "PersonaPlay3D",
+      "isDefault": false,
+      "features": ["Facial Tracking", "Lip Sync", "Eye Tracking", "Hand Gestures", "Body Tracking"],
+      "quality": "HD",
+      "version": "1.0"
+    },
+    {
+      "id": "male1",
+      "name": "Male1 Avatar",
+      "description": "Professional 3D male avatar with realistic facial features and smooth body animations",
+      "url": "/models/vrm/Male1.vrm",
+      "thumbnail": "/models/vrm/thumbnails/male1.svg",
+      "size": "14MB",
+      "creator": "PersonaPlay3D",
+      "isDefault": false,
+      "features": ["Facial Tracking", "Lip Sync", "Eye Tracking", "Hand Gestures", "Body Tracking"],
+      "quality": "HD",
+      "version": "1.0"
+    },
+    {
+      "id": "male2",
+      "name": "Male2 Avatar",
+      "description": "Latest 3D male avatar model with cutting-edge facial tracking technology",
+      "url": "/models/vrm/male%202.vrm",
+      "thumbnail": "/models/vrm/thumbnails/male2.svg",
+      "size": "16MB",
+      "creator": "PersonaPlay3D",
+      "isDefault": false,
+      "features": ["Facial Tracking", "Lip Sync", "Eye Tracking", "Hand Gestures", "Body Tracking"],
+      "quality": "HD",
+      "version": "1.0"
+    }
+  ]
+}
