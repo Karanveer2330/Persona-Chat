@@ -35,9 +35,25 @@ export default function MediaUpload({
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
-    console.log('Files selected for upload:', files.length);
     setIsUploading(true);
     try {
+      // Validate files before uploading
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const allowedTypes = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+        'video/mp4', 'video/webm', 'audio/mp3', 'audio/wav',
+        'application/pdf', 'text/plain', 'application/zip', 'application/x-rar-compressed'
+      ];
+
+      for (const file of files) {
+        if (file.size > maxSize) {
+          throw new Error(`File "${file.name}" is too large. Maximum size is 10MB.`);
+        }
+        if (!allowedTypes.includes(file.type)) {
+          throw new Error(`File type "${file.type}" is not supported.`);
+        }
+      }
+
       const formData = new FormData();
       files.forEach(file => {
         console.log('Adding file to FormData:', file.name, file.type, file.size);
@@ -45,22 +61,42 @@ export default function MediaUpload({
       });
 
       console.log('Sending upload request to server...');
-      const response = await fetch('http://localhost:5000/api/upload', {
+      const response = await fetch(`/api/upload`, {
         method: 'POST',
         body: formData,
       });
 
       console.log('Upload response status:', response.status);
+      console.log('Upload response headers:', Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
-        throw new Error('Upload failed');
+        let errorMessage = `Upload failed with status ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.log('Upload error data:', errorData);
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.log('Could not parse error response:', parseError);
+          const responseText = await response.text().catch(() => 'Unknown error');
+          console.log('Raw response text:', responseText);
+          errorMessage = responseText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
       console.log('Upload successful, received data:', data);
-      onMediaSelected(data.files);
+      
+      if (data.files && data.files.length > 0) {
+        console.log('🔧 MediaUpload - Calling onMediaSelected with:', data.files);
+        onMediaSelected(data.files);
+        console.log('🔧 MediaUpload - onMediaSelected called successfully');
+      } else {
+        throw new Error('No files returned from server');
+      }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload files. Please try again.');
+      alert(`Upload failed: ${error.message || 'Please try again.'}`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {

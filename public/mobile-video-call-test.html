@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Video Call Test</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .log { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            font-family: monospace; 
+            white-space: pre-wrap; 
+            max-height: 300px; 
+            overflow-y: auto; 
+            font-size: 12px;
+            border: 1px solid #e9ecef;
+        }
+        button { 
+            padding: 12px 20px; 
+            margin: 8px 0; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            width: 100%;
+            font-size: 16px;
+        }
+        .primary { background: #007bff; color: white; }
+        .success { background: #28a745; color: white; }
+        .danger { background: #dc3545; color: white; }
+        .warning { background: #ffc107; color: black; }
+        input { 
+            padding: 12px; 
+            margin: 8px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .connecting { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>📱 Mobile Video Call Test</h2>
+        
+        <div id="status" class="status disconnected">Disconnected</div>
+        
+        <input type="text" id="userId" placeholder="User ID" value="mobile-test-user">
+        <input type="text" id="userName" placeholder="User Name" value="Mobile Test User">
+        
+        <button class="primary" onclick="testHTTPSConnection()">Test HTTPS Connection</button>
+        <button class="warning" onclick="testHTTPConnection()">Test HTTP Fallback</button>
+        <button class="success" onclick="testVideoCall()">Test Video Call</button>
+        <button class="danger" onclick="disconnect()">Disconnect</button>
+        
+        <div id="log" class="log">Ready to test connections...\n</div>
+    </div>
+
+    <script>
+        let socket = null;
+        let connectionType = 'none';
+
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function updateStatus(status, type) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = status;
+            statusElement.className = `status ${type}`;
+        }
+
+        function testHTTPSConnection() {
+            log('🔒 Testing HTTPS connection...');
+            updateStatus('Connecting to HTTPS...', 'connecting');
+            
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            const userId = document.getElementById('userId').value;
+            const userName = document.getElementById('userName').value;
+            
+            socket = io('https://192.168.1.8:3443', {
+                transports: ['websocket', 'polling'],
+                timeout: 30000,
+                forceNew: true,
+                reconnection: true,
+                reconnectionAttempts: 3
+            });
+            
+            connectionType = 'https';
+            setupSocketEvents(userId, userName);
+        }
+
+        function testHTTPConnection() {
+            log('🌐 Testing HTTP fallback connection...');
+            updateStatus('Connecting to HTTP...', 'connecting');
+            
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            const userId = document.getElementById('userId').value;
+            const userName = document.getElementById('userName').value;
+            
+            socket = io('http://192.168.1.8:3444', {
+                transports: ['websocket', 'polling'],
+                timeout: 30000,
+                forceNew: true,
+                reconnection: true,
+                reconnectionAttempts: 3
+            });
+            
+            connectionType = 'http';
+            setupSocketEvents(userId, userName);
+        }
+
+        function setupSocketEvents(userId, userName) {
+            socket.on('connect', () => {
+                log(`✅ Connected via ${connectionType.toUpperCase()}: ${socket.id}`);
+                updateStatus(`Connected via ${connectionType.toUpperCase()}`, 'connected');
+                
+                // Register for video calls
+                socket.emit('registerForVideoCallNotifications', {
+                    userId: userId,
+                    userName: userName
+                });
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection error: ${error.message}`);
+                updateStatus(`Connection Failed: ${error.message}`, 'disconnected');
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`🔌 Disconnected: ${reason}`);
+                updateStatus('Disconnected', 'disconnected');
+            });
+
+            socket.on('registrationConfirmed', (data) => {
+                log(`✅ Registration confirmed: ${JSON.stringify(data)}`);
+            });
+
+            socket.on('incomingVideoCall', (data) => {
+                log(`📞 Incoming call: ${JSON.stringify(data)}`);
+            });
+
+            socket.on('callAccepted', (data) => {
+                log(`✅ Call accepted: ${JSON.stringify(data)}`);
+            });
+
+            socket.on('callRejected', (data) => {
+                log(`❌ Call rejected: ${JSON.stringify(data)}`);
+            });
+
+            socket.on('callInvitationFailed', (data) => {
+                log(`❌ Call failed: ${JSON.stringify(data)}`);
+            });
+        }
+
+        function testVideoCall() {
+            if (!socket) {
+                log('❌ No socket connection');
+                return;
+            }
+            
+            const userId = document.getElementById('userId').value;
+            const userName = document.getElementById('userName').value;
+            
+            log('📞 Testing video call initiation...');
+            
+            socket.emit('initiateVideoCall', {
+                callerId: userId,
+                callerName: userName,
+                recipientId: 'test-recipient',
+                callId: `test-call-${Date.now()}`
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                connectionType = 'none';
+                updateStatus('Disconnected', 'disconnected');
+                log('🔌 Manually disconnected');
+            }
+        }
+
+        // Auto-detect mobile device
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        // Log device info
+        log(`📱 Device: ${isMobile() ? 'Mobile' : 'Desktop'}`);
+        log(`🌐 User Agent: ${navigator.userAgent}`);
+        log(`🔒 Secure Context: ${window.isSecureContext ? 'Yes' : 'No'}`);
+        log(`📍 Location: ${window.location.href}`);
+    </script>
+</body>
+</html>

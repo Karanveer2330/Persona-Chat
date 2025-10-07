@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #4CAF50; }
+        .error { background: #f44336; }
+        .warning { background: #ff9800; }
+        .info { background: #2196F3; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        video {
+            width: 100%;
+            max-width: 320px;
+            background: #000;
+        }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 Mobile Connection Test</h1>
+    
+    <div class="test-section">
+        <h2>🔍 Device Detection</h2>
+        <div id="device-info"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔒 Security Context</h2>
+        <div id="security-info"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📷 Camera Access Test</h2>
+        <button onclick="testCamera()">Test Camera</button>
+        <button onclick="stopCamera()" disabled id="stop-btn">Stop Camera</button>
+        <div id="camera-status"></div>
+        <video id="test-video" autoplay muted style="display: none;"></video>
+    </div>
+    
+    <div class="test-section">
+        <h2>🌐 Network Test</h2>
+        <button onclick="testNetwork()">Test Network</button>
+        <div id="network-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 Connection Log</h2>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Device Detection
+        function detectDevice() {
+            const userAgent = navigator.userAgent;
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+            const isAndroid = /Android/i.test(userAgent);
+            
+            let deviceInfo = `
+                <div class="status info">
+                    <strong>User Agent:</strong> ${userAgent}
+                </div>
+                <div class="status ${isMobile ? 'success' : 'warning'}">
+                    <strong>Mobile Device:</strong> ${isMobile ? 'Yes' : 'No'}
+                </div>
+                <div class="status ${isIOS ? 'success' : 'info'}">
+                    <strong>iOS:</strong> ${isIOS ? 'Yes' : 'No'}
+                </div>
+                <div class="status ${isAndroid ? 'success' : 'info'}">
+                    <strong>Android:</strong> ${isAndroid ? 'Yes' : 'No'}
+                </div>
+            `;
+            
+            document.getElementById('device-info').innerHTML = deviceInfo;
+            log(`Device detected: ${isMobile ? 'Mobile' : 'Desktop'} ${isIOS ? 'iOS' : isAndroid ? 'Android' : ''}`);
+        }
+
+        // Security Context
+        function checkSecurity() {
+            const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+            const hasMediaDevices = navigator.mediaDevices !== undefined;
+            const hasGetUserMedia = hasMediaDevices && navigator.mediaDevices.getUserMedia !== undefined;
+            
+            let securityInfo = `
+                <div class="status ${isSecure ? 'success' : 'error'}">
+                    <strong>Secure Context:</strong> ${isSecure ? 'Yes (HTTPS/localhost)' : 'No (HTTP)'}
+                </div>
+                <div class="status ${hasMediaDevices ? 'success' : 'error'}">
+                    <strong>MediaDevices API:</strong> ${hasMediaDevices ? 'Available' : 'Not Available'}
+                </div>
+                <div class="status ${hasGetUserMedia ? 'success' : 'error'}">
+                    <strong>getUserMedia:</strong> ${hasGetUserMedia ? 'Available' : 'Not Available'}
+                </div>
+                <div class="status info">
+                    <strong>Protocol:</strong> ${window.location.protocol}
+                </div>
+                <div class="status info">
+                    <strong>Hostname:</strong> ${window.location.hostname}
+                </div>
+            `;
+            
+            document.getElementById('security-info').innerHTML = securityInfo;
+            log(`Security check: ${isSecure ? 'Secure' : 'Insecure'} context, getUserMedia: ${hasGetUserMedia ? 'Available' : 'Not Available'}`);
+        }
+
+        // Camera Test
+        let currentStream = null;
+        
+        async function testCamera() {
+            const statusDiv = document.getElementById('camera-status');
+            const video = document.getElementById('test-video');
+            const stopBtn = document.getElementById('stop-btn');
+            
+            try {
+                log('Starting camera test...');
+                statusDiv.innerHTML = '<div class="status info">Requesting camera access...</div>';
+                
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia not supported');
+                }
+                
+                const constraints = {
+                    video: {
+                        width: { ideal: 320, max: 480 },
+                        height: { ideal: 240, max: 360 },
+                        facingMode: 'user'
+                    },
+                    audio: false
+                };
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                video.style.display = 'block';
+                
+                statusDiv.innerHTML = '<div class="status success">✅ Camera access successful!</div>';
+                stopBtn.disabled = false;
+                
+                log(`Camera test successful: ${currentStream.getVideoTracks().length} video tracks`);
+                
+            } catch (error) {
+                log(`Camera test failed: ${error.name} - ${error.message}`);
+                
+                let errorMessage = 'Camera access failed';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'Camera permission denied';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = 'No camera found';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMessage = 'Camera not supported';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = 'Camera in use by another app';
+                }
+                
+                statusDiv.innerHTML = `<div class="status error">❌ ${errorMessage}</div>`;
+            }
+        }
+        
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                document.getElementById('test-video').style.display = 'none';
+                document.getElementById('stop-btn').disabled = true;
+                document.getElementById('camera-status').innerHTML = '<div class="status info">Camera stopped</div>';
+                log('Camera stopped');
+            }
+        }
+
+        // Network Test
+        async function testNetwork() {
+            const statusDiv = document.getElementById('network-status');
+            statusDiv.innerHTML = '<div class="status info">Testing network connection...</div>';
+            
+            try {
+                log('Testing network connection...');
+                
+                // Test basic connectivity
+                const response = await fetch(window.location.origin + '/api/health', {
+                    method: 'GET',
+                    timeout: 5000
+                }).catch(() => {
+                    // Fallback test
+                    return fetch('https://httpbin.org/get', { method: 'GET' });
+                });
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = '<div class="status success">✅ Network connection successful!</div>';
+                    log('Network test successful');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+            } catch (error) {
+                log(`Network test failed: ${error.message}`);
+                statusDiv.innerHTML = `<div class="status error">❌ Network test failed: ${error.message}</div>`;
+            }
+        }
+
+        // Initialize tests
+        window.onload = function() {
+            log('Mobile connection test page loaded');
+            detectDevice();
+            checkSecurity();
+        };
+    </script>
+</body>
+</html>
+

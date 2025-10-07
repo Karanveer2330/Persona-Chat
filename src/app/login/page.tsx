@@ -9,6 +9,7 @@ import { LogIn, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -21,14 +22,17 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch("/api/users/login", {
+      // Use relative URL to go through Next.js proxy
+      const res = await fetch('/api/users/login', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       });
       const data = await res.json();
-      if (!res.ok || !data.user) {
+      if (!res.ok) {
         setError(data.error || "Login failed");
+        toast.error(data.error || "Login failed");
         return;
       }
       // Log in the user in your context
@@ -39,9 +43,24 @@ export default function LoginPage() {
         isOnline: true,
         isAnonymous: false, // Explicitly mark as not anonymous
       });
+      toast.success("Login successful! Redirecting...");
       router.push('/chat/global');
     } catch (err) {
-      setError("Login failed");
+      console.error('Login error:', err);
+      let errorMessage = "Login failed";
+      
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMessage = "Request timed out. Please check your connection and try again.";
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = "Cannot connect to server. Please ensure the backend is running.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 

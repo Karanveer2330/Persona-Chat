@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Video Calls</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .user-section { border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 3px; cursor: pointer; }
+        .primary { background: #007bff; color: white; }
+        .success { background: #28a745; color: white; }
+        .danger { background: #dc3545; color: white; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Video Call System</h1>
+        
+        <div class="user-section">
+            <h3>User 1 (Caller)</h3>
+            <input type="text" id="user1Id" placeholder="User 1 ID" value="test1">
+            <input type="text" id="user1Name" placeholder="User 1 Name" value="Test User 1">
+            <button class="primary" onclick="connectUser1()">Connect User 1</button>
+            <button class="success" onclick="initiateCall()">Initiate Call</button>
+            <div id="user1Log" class="log"></div>
+        </div>
+        
+        <div class="user-section">
+            <h3>User 2 (Recipient)</h3>
+            <input type="text" id="user2Id" placeholder="User 2 ID" value="test2">
+            <input type="text" id="user2Name" placeholder="User 2 Name" value="Test User 2">
+            <button class="primary" onclick="connectUser2()">Connect User 2</button>
+            <button class="success" onclick="acceptCall()" disabled id="acceptBtn">Accept Call</button>
+            <button class="danger" onclick="rejectCall()" disabled id="rejectBtn">Reject Call</button>
+            <div id="user2Log" class="log"></div>
+        </div>
+        
+        <div class="user-section">
+            <h3>Server Status</h3>
+            <button class="primary" onclick="testServerConnection()">Test Server Connection</button>
+            <button class="primary" onclick="getOnlineUsers()">Get Online Users</button>
+            <div id="serverLog" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let user1Socket = null;
+        let user2Socket = null;
+        let currentCallId = null;
+
+        function log(elementId, message) {
+            const logElement = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function connectUser1() {
+            const userId = document.getElementById('user1Id').value;
+            const userName = document.getElementById('user1Name').value;
+            
+            if (user1Socket) {
+                user1Socket.disconnect();
+            }
+            
+            user1Socket = io('https://localhost:3443');
+            
+            user1Socket.on('connect', () => {
+                log('user1Log', `✅ User 1 connected: ${user1Socket.id}`);
+                
+                // Register for video call notifications
+                user1Socket.emit('registerForVideoCallNotifications', {
+                    userId: userId,
+                    userName: userName
+                });
+            });
+            
+            user1Socket.on('registrationConfirmed', (data) => {
+                log('user1Log', `✅ User 1 registration confirmed: ${JSON.stringify(data)}`);
+            });
+            
+            user1Socket.on('callAccepted', (data) => {
+                log('user1Log', `✅ Call accepted: ${JSON.stringify(data)}`);
+            });
+            
+            user1Socket.on('callRejected', (data) => {
+                log('user1Log', `❌ Call rejected: ${JSON.stringify(data)}`);
+            });
+            
+            user1Socket.on('callInvitationFailed', (data) => {
+                log('user1Log', `❌ Call invitation failed: ${JSON.stringify(data)}`);
+            });
+            
+            user1Socket.on('connect_error', (error) => {
+                log('user1Log', `❌ Connection error: ${error.message}`);
+            });
+        }
+
+        function connectUser2() {
+            const userId = document.getElementById('user2Id').value;
+            const userName = document.getElementById('user2Name').value;
+            
+            if (user2Socket) {
+                user2Socket.disconnect();
+            }
+            
+            user2Socket = io('https://localhost:3443');
+            
+            user2Socket.on('connect', () => {
+                log('user2Log', `✅ User 2 connected: ${user2Socket.id}`);
+                
+                // Register for video call notifications
+                user2Socket.emit('registerForVideoCallNotifications', {
+                    userId: userId,
+                    userName: userName
+                });
+            });
+            
+            user2Socket.on('registrationConfirmed', (data) => {
+                log('user2Log', `✅ User 2 registration confirmed: ${JSON.stringify(data)}`);
+            });
+            
+            user2Socket.on('incomingVideoCall', (data) => {
+                log('user2Log', `📞 Incoming video call: ${JSON.stringify(data)}`);
+                currentCallId = data.callId;
+                document.getElementById('acceptBtn').disabled = false;
+                document.getElementById('rejectBtn').disabled = false;
+            });
+            
+            user2Socket.on('connect_error', (error) => {
+                log('user2Log', `❌ Connection error: ${error.message}`);
+            });
+        }
+
+        function initiateCall() {
+            if (!user1Socket) {
+                log('user1Log', '❌ User 1 not connected');
+                return;
+            }
+            
+            const recipientId = document.getElementById('user2Id').value;
+            const recipientName = document.getElementById('user2Name').value;
+            const callerId = document.getElementById('user1Id').value;
+            const callerName = document.getElementById('user1Name').value;
+            
+            const callId = `${callerId}-${recipientId}-${Date.now()}`;
+            
+            log('user1Log', `🚀 Initiating call to ${recipientName} (${recipientId})`);
+            
+            user1Socket.emit('initiateVideoCall', {
+                callerId: callerId,
+                callerName: callerName,
+                recipientId: recipientId,
+                callId: callId
+            });
+        }
+
+        function acceptCall() {
+            if (!user2Socket || !currentCallId) {
+                log('user2Log', '❌ No call to accept');
+                return;
+            }
+            
+            const callerId = document.getElementById('user1Id').value;
+            const recipientName = document.getElementById('user2Name').value;
+            
+            log('user2Log', `✅ Accepting call: ${currentCallId}`);
+            
+            user2Socket.emit('acceptVideoCall', {
+                callId: currentCallId,
+                callerId: callerId,
+                recipientName: recipientName
+            });
+            
+            document.getElementById('acceptBtn').disabled = true;
+            document.getElementById('rejectBtn').disabled = true;
+        }
+
+        function rejectCall() {
+            if (!user2Socket || !currentCallId) {
+                log('user2Log', '❌ No call to reject');
+                return;
+            }
+            
+            const callerId = document.getElementById('user1Id').value;
+            const recipientName = document.getElementById('user2Name').value;
+            
+            log('user2Log', `❌ Rejecting call: ${currentCallId}`);
+            
+            user2Socket.emit('rejectVideoCall', {
+                callId: currentCallId,
+                callerId: callerId,
+                recipientName: recipientName,
+                reason: 'Call declined'
+            });
+            
+            document.getElementById('acceptBtn').disabled = true;
+            document.getElementById('rejectBtn').disabled = true;
+        }
+
+        function testServerConnection() {
+            fetch('https://localhost:3443/api/video-call-test')
+                .then(response => response.json())
+                .then(data => {
+                    log('serverLog', `✅ Server response: ${JSON.stringify(data)}`);
+                })
+                .catch(error => {
+                    log('serverLog', `❌ Server error: ${error.message}`);
+                });
+        }
+
+        function getOnlineUsers() {
+            if (user1Socket) {
+                user1Socket.emit('requestOnlineUsers');
+                user1Socket.on('currentOnlineUsers', (users) => {
+                    log('serverLog', `👥 Online users: ${JSON.stringify(users)}`);
+                });
+            }
+        }
+    </script>
+</body>
+</html>

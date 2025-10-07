@@ -1,11 +1,14 @@
 "use client";
-import type { Message, User } from '@/src/lib/types';
+import type { Message, User, TypingUser } from '@/src/lib/types';
 import { ScrollArea } from '@/src/components/ui/scroll-area';
 import React, { useEffect, useRef, useState } from 'react';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Skeleton } from '../ui/skeleton';
 import { useRouter } from "next/navigation";
 import MediaDisplay from './MediaDisplay';
+import MessageReactions from './MessageReactions';
+import MessageStatus from './MessageStatus';
+import TypingIndicator from './TypingIndicator';
 import { MessageSquare } from 'lucide-react';
 
 interface ChatWindowProps {
@@ -14,6 +17,9 @@ interface ChatWindowProps {
   isLoading?: boolean;
   user?: User;
   onStartPrivateChat?: (user: { id: string, name: string }) => void;
+  typingUsers?: TypingUser[];
+  onAddReaction?: (messageId: string, emoji: string) => void;
+  onRemoveReaction?: (messageId: string, emoji: string) => void;
 }
 
 type PopoverState = {
@@ -21,7 +27,16 @@ type PopoverState = {
   rect: DOMRect;
 } | null;
 
-export default function ChatWindow({ messages, chatPartner, isLoading, user, onStartPrivateChat }: ChatWindowProps) {
+export default function ChatWindow({ 
+  messages, 
+  chatPartner, 
+  isLoading, 
+  user, 
+  onStartPrivateChat,
+  typingUsers = [],
+  onAddReaction,
+  onRemoveReaction
+}: ChatWindowProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [popover, setPopover] = useState<PopoverState>(null);
@@ -43,6 +58,19 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("resize", close);
     };
+  }, [popover]);
+
+  // Mobile-specific: Close popover on touch (but not on popover itself)
+  useEffect(() => {
+    if (!popover) return;
+    const close = (e: TouchEvent) => {
+      // Don't close if touch is on the popover or its children
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-popover]')) return;
+      setPopover(null);
+    };
+    window.addEventListener("touchstart", close);
+    return () => window.removeEventListener("touchstart", close);
   }, [popover]);
 
   if (isLoading) {
@@ -69,15 +97,15 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
 
   return (
     <div className="flex flex-col h-full bg-background relative">
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-1 md:p-4">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 p-2 md:p-4 pt-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <MessageSquare className="w-16 h-16 mb-4" />
-            <p className="text-lg">No messages yet.</p>
-            <p>Start the conversation!</p>
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground px-4">
+            <MessageSquare className="w-12 h-12 md:w-16 md:h-16 mb-4" />
+            <p className="text-base md:text-lg text-center">No messages yet.</p>
+            <p className="text-sm md:text-base text-center">Start the conversation!</p>
           </div>
         ) : (
-          messages.map((msg) => {
+          messages.map((msg, index) => {
             // Always compare as strings and fallback to other possible id fields
             const senderId = String(
               msg.senderId ||
@@ -100,8 +128,8 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
               typeof msg.senderName === "string" && msg.senderName.length > 0
                 ? msg.senderName
                 : (msg as any).username || (msg as any).email || (msg as any).name || msg.id || "Unknown";
-            // Use msg.id, msg._id, or fallback to senderId-timestamp for key
-            const key = msg.id || (msg as any)._id || `${senderId}-${msg.timestamp}`;
+            // Use msg.id, msg._id, or create a truly unique fallback key
+            const key = msg.id || (msg as any)._id || `message-${index}-${senderId}-${msg.timestamp || Date.now()}`;
             
             // Get message text from either text or content field
             const messageText = msg.text || (msg as any).content || '';
@@ -109,6 +137,7 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
             return (
               <div
                 key={key}
+                data-message-id={msg.id}
                 className={`flex items-end gap-3 mb-4 relative ${isOwn ? "justify-end" : "justify-start"}`}
               >
                 {/* Avatar */}
@@ -149,6 +178,27 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
                       </div>
                     )}
                   </div>
+                  
+                  {/* Message Reactions */}
+                  <div className="mt-1">
+                    <MessageReactions
+                      key={`${msg.id}-${(msg.reactions || []).length}`}
+                      messageId={msg.id}
+                      reactions={msg.reactions || []}
+                      onAddReaction={onAddReaction || (() => {})}
+                      onRemoveReaction={onRemoveReaction || (() => {})}
+                    />
+                  </div>
+                  
+                  {/* Message Status and Timestamp */}
+                  <div className={`flex items-center gap-2 mt-1 ${isOwn ? "justify-end" : "justify-start"}`}>
+                    <span className={`text-xs text-muted-foreground ${isOwn ? "mr-1" : "ml-1"}`}>
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {isOwn && (
+                      <MessageStatus message={msg} />
+                    )}
+                  </div>
                 </div>
                 {/* Own avatar */}
                 {isOwn && (
@@ -168,10 +218,14 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
           })
         )}
         <div ref={messagesEndRef} />
+        
+        {/* Typing Indicator */}
+        <TypingIndicator typingUsers={typingUsers} />
       </ScrollArea>
       {/* Popover for private chat */}
       {popover && (
         <div
+          data-popover
           className="fixed z-50 bg-white border rounded shadow-lg p-4 min-w-[180px]"
           style={{
             left: popover.rect.left + popover.rect.width / 2,
@@ -185,14 +239,32 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
           <button
             className="mt-2 inline-block px-3 py-1 bg-primary text-white rounded hover:bg-primary/80"
             onClick={() => {
-              // Try all possible sender id fields
+              console.log('🚨 TALK PRIVATE BUTTON CLICKED - Mobile Debug:');
+              console.log('🚨 User agent:', navigator.userAgent);
+              console.log('🚨 Screen width:', window.innerWidth);
+              console.log('🚨 Is mobile:', /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768);
+              
+              // Try all possible sender id fields - prioritize senderId over id
               const targetUserId =
                 popover.msg.senderId ||
                 (popover.msg as any).sender ||
-                popover.msg.id ||
                 (popover.msg as any).userId ||
                 (popover.msg as any).userid ||
                 (popover.msg as any).user_id;
+                // Note: Removed popover.msg.id because that's the message ID, not user ID
+                
+              console.log('🚨 TARGET USER ID DEBUG:');
+              console.log('🚨 popover.msg:', popover.msg);
+              console.log('🚨 popover.msg.senderId:', popover.msg.senderId);
+              console.log('🚨 popover.msg.id:', popover.msg.id);
+              console.log('🚨 Final targetUserId:', targetUserId);
+              
+              // Mobile fallback: if no valid user ID, redirect to users page
+              if (!targetUserId || targetUserId === popover.msg.id) {
+                console.log('🚨 Invalid user ID detected, redirecting to users page');
+                window.location.href = '/chat/users';
+                return;
+              }
 
               // Try all possible current user id fields
               const currentUserId =
@@ -212,8 +284,77 @@ export default function ChatWindow({ messages, chatPartner, isLoading, user, onS
                 onStartPrivateChat({ id: targetUserId, name: popover.msg.senderName });
               }
               setPopover(null);
+              
+              // Create/find room and navigate to room-based private chat
               if (targetUserId && String(targetUserId) !== String(currentUserId)) {
-                router.push(`/chat/private/${targetUserId}`);
+                // Start private chat by creating/finding room
+                const startPrivateChat = async () => {
+                  try {
+                    // Dynamic API URL for mobile compatibility
+                    const getApiUrl = () => {
+                      if (typeof window !== 'undefined') {
+                        const hostname = window.location.hostname;
+                        const protocol = window.location.protocol;
+                        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                          return protocol === 'https:' ? "https://localhost:3443" : "http://localhost:3444";
+                        } else {
+                          return protocol === 'https:' ? `https://${hostname}:3443` : `http://${hostname}:3444`;
+                        }
+                      }
+                      return "https://localhost:3443";
+                    };
+                    
+                    console.log('🚨 PRIVATE CHAT DEBUG:');
+                    console.log('🚨 Current User ID:', currentUserId);
+                    console.log('🚨 Target User ID:', targetUserId);
+                    console.log('🚨 Current User:', user);
+                    console.log('🚨 Making request to:', `${getApiUrl()}/api/rooms/private`);
+                    
+                    const requestBody = {
+                      userId1: currentUserId,
+                      userId2: targetUserId,
+                    };
+                    console.log('🚨 Request body:', requestBody);
+                    
+                    const response = await fetch(`${getApiUrl()}/api/rooms/private`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                      },
+                      body: JSON.stringify(requestBody),
+                    });
+                    
+                    if (!response.ok) {
+                      console.error('Server response:', response.status, response.statusText);
+                      throw new Error(`Failed to create room: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    const roomId = data.room._id;
+                    
+                    console.log('🚨 Room created/found with ID:', roomId);
+                    console.log('🚨 Redirecting to target user ID:', targetUserId);
+                    
+                    // Mobile-specific navigation handling
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+                    const redirectUrl = `/chat/private/${targetUserId}`;
+                    
+                    if (isMobile) {
+                      console.log('📱 Mobile device detected, using window.location for navigation');
+                      window.location.href = redirectUrl;
+                    } else {
+                      console.log('🖥️ Desktop device detected, using router.push');
+                      router.push(redirectUrl);
+                    }
+                  } catch (error) {
+                    console.error('Error starting private chat:', error);
+                    // Fallback to users page if room creation fails
+                    router.push('/chat/users');
+                  }
+                };
+                
+                startPrivateChat();
               }
             }}
           >

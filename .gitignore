@@ -43,3 +43,5 @@ next-env.d.ts
 # uploads folder (contains user-uploaded files)
 server/uploads/
 public/uploads/
+
+certificates

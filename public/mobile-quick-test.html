@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 Mobile Quick Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .test-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .test-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFE066;
+        }
+        .status {
+            padding: 8px 15px;
+            border-radius: 10px;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .success { background: rgba(34, 197, 94, 0.3); border: 1px solid #22c55e; }
+        .error { background: rgba(239, 68, 68, 0.3); border: 1px solid #ef4444; }
+        .info { background: rgba(59, 130, 246, 0.3); border: 1px solid #3b82f6; }
+        .warning { background: rgba(245, 158, 11, 0.3); border: 1px solid #f59e0b; }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .big-button {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            margin: 5px 0;
+        }
+        input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .log {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Mobile Connection Test</h1>
+        
+        <!-- Network Info -->
+        <div class="test-section">
+            <div class="test-title">🌐 Network Information</div>
+            <div id="networkInfo">
+                <div class="info">Computer: https://192.168.1.4:9443</div>
+                <div class="info">Backend: https://192.168.1.4:3443</div>
+            </div>
+        </div>
+
+        <!-- Connection Test -->
+        <div class="test-section">
+            <div class="test-title">🔗 Connection Test</div>
+            <button onclick="testConnection()" class="big-button">Test Backend Connection</button>
+            <div id="connectionStatus"></div>
+        </div>
+
+        <!-- Socket.IO Test -->
+        <div class="test-section">
+            <div class="test-title">⚡ Socket.IO Test</div>
+            <button onclick="testSocket()" class="big-button" id="socketBtn">Connect to Socket</button>
+            <div id="socketStatus"></div>
+        </div>
+
+        <!-- Camera Test -->
+        <div class="test-section">
+            <div class="test-title">📷 Camera Test</div>
+            <button onclick="testCamera()" class="big-button">Test Camera Access</button>
+            <div id="cameraStatus"></div>
+            <video id="testVideo" style="width:100%; border-radius:10px; margin-top:10px; display:none;"></video>
+        </div>
+
+        <!-- Quick Chat Test -->
+        <div class="test-section">
+            <div class="test-title">💬 Quick Chat Test</div>
+            <input type="text" id="usernameInput" placeholder="Enter your username" />
+            <button onclick="quickLogin()" class="big-button">Join Chat</button>
+            <button onclick="window.open('https://192.168.1.4:9443', '_blank')" class="big-button">Open Full App</button>
+            <div id="chatStatus"></div>
+        </div>
+
+        <!-- Debug Log -->
+        <div class="test-section">
+            <div class="test-title">🔍 Debug Log</div>
+            <div id="debugLog" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        
+        function log(message, type = 'info') {
+            const debugLog = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            debugLog.innerHTML += `<div class="${type}">${logEntry}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+
+        function updateStatus(elementId, message, className) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${className}">${message}</div>`;
+        }
+
+        async function testConnection() {
+            log('Testing backend connection...', 'info');
+            updateStatus('connectionStatus', '🔄 Testing connection...', 'info');
+            
+            try {
+                const response = await fetch('https://192.168.1.4:3443/api/mobile-test', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Backend connected! Status: ${data.status}`, 'success');
+                    updateStatus('connectionStatus', '✅ Backend connection successful!', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                log(`❌ Backend connection failed: ${error.message}`, 'error');
+                updateStatus('connectionStatus', `❌ Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSocket() {
+            if (socket && socket.connected) {
+                socket.disconnect();
+                socket = null;
+                document.getElementById('socketBtn').textContent = 'Connect to Socket';
+                updateStatus('socketStatus', '🔌 Disconnected from socket', 'info');
+                log('Socket disconnected', 'info');
+                return;
+            }
+
+            log('Testing Socket.IO connection...', 'info');
+            updateStatus('socketStatus', '🔄 Connecting to socket...', 'info');
+            
+            try {
+                // Load Socket.IO from CDN
+                if (!window.io) {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
+                    script.onload = () => connectSocket();
+                    document.head.appendChild(script);
+                } else {
+                    connectSocket();
+                }
+            } catch (error) {
+                log(`❌ Socket.IO setup failed: ${error.message}`, 'error');
+                updateStatus('socketStatus', `❌ Socket setup failed: ${error.message}`, 'error');
+            }
+        }
+
+        function connectSocket() {
+            try {
+                socket = io('https://192.168.1.4:3443', {
+                    secure: true,
+                    rejectUnauthorized: false,
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+
+                socket.on('connect', () => {
+                    log('✅ Socket.IO connected successfully!', 'success');
+                    updateStatus('socketStatus', '✅ Socket.IO connected!', 'success');
+                    document.getElementById('socketBtn').textContent = 'Disconnect Socket';
+                    
+                    // Join global room to test
+                    socket.emit('joinGlobalRoom');
+                    log('Joined global chat room', 'info');
+                });
+
+                socket.on('disconnect', () => {
+                    log('🔌 Socket.IO disconnected', 'warning');
+                    updateStatus('socketStatus', '🔌 Socket disconnected', 'warning');
+                    document.getElementById('socketBtn').textContent = 'Connect to Socket';
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Socket connection error: ${error.message}`, 'error');
+                    updateStatus('socketStatus', `❌ Socket error: ${error.message}`, 'error');
+                });
+
+                socket.on('userOnlineStatusUpdate', (data) => {
+                    log(`👤 User status update: ${data.name} is ${data.isOnline ? 'online' : 'offline'}`, 'info');
+                });
+
+            } catch (error) {
+                log(`❌ Socket connection failed: ${error.message}`, 'error');
+                updateStatus('socketStatus', `❌ Socket failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCamera() {
+            log('Testing camera access...', 'info');
+            updateStatus('cameraStatus', '🔄 Requesting camera access...', 'info');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }, 
+                    audio: true 
+                });
+                
+                const video = document.getElementById('testVideo');
+                video.srcObject = stream;
+                video.style.display = 'block';
+                video.play();
+                
+                log('✅ Camera and microphone access granted!', 'success');
+                updateStatus('cameraStatus', '✅ Camera access successful!', 'success');
+                
+                // Stop the stream after 5 seconds to save battery
+                setTimeout(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                    video.style.display = 'none';
+                    log('📹 Camera stream stopped (auto)', 'info');
+                }, 5000);
+                
+            } catch (error) {
+                log(`❌ Camera access failed: ${error.message}`, 'error');
+                updateStatus('cameraStatus', `❌ Camera failed: ${error.message}`, 'error');
+            }
+        }
+
+        function quickLogin() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if (!username) {
+                updateStatus('chatStatus', '❌ Please enter a username', 'error');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                updateStatus('chatStatus', '❌ Connect to socket first', 'error');
+                return;
+            }
+
+            log(`Logging in as: ${username}`, 'info');
+            updateStatus('chatStatus', '🔄 Logging in...', 'info');
+
+            // Simulate login by emitting user online event
+            const userId = Date.now().toString();
+            socket.emit('userOnline', {
+                userId: userId,
+                name: username
+            });
+
+            socket.emit('requestOnlineUsers');
+
+            socket.on('onlineUsersUpdate', (users) => {
+                log(`📋 Online users received: ${users.length} users`, 'success');
+                updateStatus('chatStatus', `✅ Logged in! ${users.length} users online`, 'success');
+            });
+
+            setTimeout(() => {
+                updateStatus('chatStatus', '✅ Ready to use full app!', 'success');
+            }, 2000);
+        }
+
+        // Auto-run connection test on load
+        window.onload = function() {
+            log('📱 Mobile Quick Test initialized', 'info');
+            log('Device: ' + navigator.userAgent, 'info');
+            
+            // Test connection automatically
+            setTimeout(() => {
+                testConnection();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

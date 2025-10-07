@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Socket Test</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 3px; cursor: pointer; background: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Simple Socket Connection Test</h1>
+    
+    <button onclick="testConnection()">Test Socket Connection</button>
+    <button onclick="testRegistration()">Test Registration</button>
+    <button onclick="testVideoCall()">Test Video Call</button>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        let socket = null;
+
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function testConnection() {
+            log('🔌 Testing socket connection...');
+            
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            socket = io('https://localhost:3443');
+            
+            socket.on('connect', () => {
+                log(`✅ Connected: ${socket.id}`);
+            });
+            
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection error: ${error.message}`);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                log(`🔌 Disconnected: ${reason}`);
+            });
+        }
+
+        function testRegistration() {
+            if (!socket) {
+                log('❌ Socket not connected');
+                return;
+            }
+            
+            log('📞 Testing video call registration...');
+            
+            socket.emit('registerForVideoCallNotifications', {
+                userId: 'test-user-123',
+                userName: 'Test User'
+            });
+            
+            socket.on('registrationConfirmed', (data) => {
+                log(`✅ Registration confirmed: ${JSON.stringify(data)}`);
+            });
+        }
+
+        function testVideoCall() {
+            if (!socket) {
+                log('❌ Socket not connected');
+                return;
+            }
+            
+            log('📞 Testing video call initiation...');
+            
+            socket.emit('initiateVideoCall', {
+                callerId: 'test-user-123',
+                callerName: 'Test User',
+                recipientId: 'test-user-456',
+                callId: 'test-call-123'
+            });
+            
+            socket.on('callInvitationFailed', (data) => {
+                log(`❌ Call invitation failed: ${JSON.stringify(data)}`);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTPS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #4CAF50; }
+        .error { background: #f44336; }
+        .info { background: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>🔒 HTTPS Connection Test</h1>
+    
+    <div id="status" class="status info">
+        Testing HTTPS connection...
+    </div>
+    
+    <div id="details"></div>
+
+    <script>
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function addDetail(message) {
+            const detailsDiv = document.getElementById('details');
+            detailsDiv.innerHTML += `<p>${message}</p>`;
+        }
+
+        // Test HTTPS connection
+        async function testHTTPS() {
+            try {
+                addDetail('Protocol: ' + window.location.protocol);
+                addDetail('Host: ' + window.location.host);
+                addDetail('User Agent: ' + navigator.userAgent);
+                
+                if (window.location.protocol === 'https:') {
+                    updateStatus('✅ HTTPS connection successful!', 'success');
+                    addDetail('Camera access should work on mobile devices');
+                    
+                    // Test camera access
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        addDetail('getUserMedia API is available');
+                        
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                            addDetail('✅ Camera access test successful!');
+                            stream.getTracks().forEach(track => track.stop());
+                        } catch (cameraError) {
+                            addDetail('❌ Camera access test failed: ' + cameraError.message);
+                        }
+                    } else {
+                        addDetail('❌ getUserMedia API not available');
+                    }
+                } else {
+                    updateStatus('❌ Not using HTTPS - camera access will fail on mobile', 'error');
+                    addDetail('Please access this page via HTTPS');
+                }
+                
+            } catch (error) {
+                updateStatus('❌ Connection test failed: ' + error.message, 'error');
+            }
+        }
+
+        // Run test when page loads
+        window.onload = testHTTPS;
+    </script>
+</body>
+</html>
+

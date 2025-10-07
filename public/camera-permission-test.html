@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Permission Test</title>
+</head>
+<body>
+    <h1>Camera Permission Test</h1>
+    <button onclick="requestCamera()">Request Camera Permission</button>
+    <video id="video" autoplay muted style="width: 300px; height: 200px; border: 1px solid #ccc;"></video>
+    <div id="status"></div>
+
+    <script>
+        async function requestCamera() {
+            const statusDiv = document.getElementById('status');
+            const video = document.getElementById('video');
+            
+            try {
+                statusDiv.innerHTML = 'Requesting camera permission...';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                
+                video.srcObject = stream;
+                statusDiv.innerHTML = '✅ Camera permission granted! Video should be visible above.';
+                
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Camera permission denied: ${error.message}`;
+                console.error('Camera permission error:', error);
+            }
+        }
+
+        // Auto-request on page load
+        window.onload = function() {
+            setTimeout(requestCamera, 1000);
+        };
+    </script>
+</body>
+</html> 

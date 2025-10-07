@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Call Notification Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #333; border-radius: 8px; }
+        .log { background: #000; padding: 10px; border-radius: 4px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        input { padding: 8px; margin: 5px; border: 1px solid #555; border-radius: 4px; background: #333; color: white; }
+        .status { padding: 5px 10px; border-radius: 4px; margin: 5px 0; }
+        .online { background: #28a745; }
+        .offline { background: #dc3545; }
+        .connecting { background: #ffc107; color: black; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .notification { background: #17a2b8; padding: 10px; border-radius: 4px; margin: 10px 0; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Video Call Notification Test</h1>
+        
+        <div class="grid">
+            <div class="section">
+                <h3>User 1 (Caller)</h3>
+                <input type="text" id="user1Id" placeholder="User 1 ID" value="user1">
+                <input type="text" id="user1Name" placeholder="User 1 Name" value="User One">
+                <br>
+                <button onclick="connectUser1()">Connect User 1</button>
+                <button onclick="registerUser1()">Register User 1</button>
+                <button onclick="initiateCall()" id="callBtn" disabled>Call User 2</button>
+                <div id="user1Status" class="status offline">Disconnected</div>
+                <div id="user1Notifications"></div>
+            </div>
+
+            <div class="section">
+                <h3>User 2 (Recipient)</h3>
+                <input type="text" id="user2Id" placeholder="User 2 ID" value="user2">
+                <input type="text" id="user2Name" placeholder="User 2 Name" value="User Two">
+                <br>
+                <button onclick="connectUser2()">Connect User 2</button>
+                <button onclick="registerUser2()">Register User 2</button>
+                <button onclick="acceptCall()" id="acceptBtn" disabled>Accept Call</button>
+                <button onclick="rejectCall()" id="rejectBtn" disabled>Reject Call</button>
+                <div id="user2Status" class="status offline">Disconnected</div>
+                <div id="user2Notifications"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Server Connection Info</h3>
+            <div>Server URL: <span id="serverUrl">-</span></div>
+            <div>User 1 Socket ID: <span id="user1SocketId">-</span></div>
+            <div>User 2 Socket ID: <span id="user2SocketId">-</span></div>
+            <button onclick="getServerInfo()">Get Server Info</button>
+            <button onclick="testServerEndpoint()">Test Server Endpoint</button>
+        </div>
+
+        <div class="section">
+            <h3>Event Log</h3>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket1 = null;
+        let socket2 = null;
+        let currentCallId = null;
+        let currentCallerId = null;
+
+        function log(message, user = 'SYSTEM') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] [${user}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${user}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function updateStatus(user, status, color) {
+            const statusDiv = document.getElementById(`${user}Status`);
+            statusDiv.textContent = status;
+            statusDiv.className = `status ${color}`;
+        }
+
+        function updateSocketInfo() {
+            document.getElementById('serverUrl').textContent = getSocketUrl();
+            document.getElementById('user1SocketId').textContent = socket1 ? socket1.id : '-';
+            document.getElementById('user2SocketId').textContent = socket2 ? socket2.id : '-';
+        }
+
+        function getSocketUrl() {
+            const hostname = window.location.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return "https://localhost:3443";
+            } else {
+                return `https://${hostname}:3443`;
+            }
+        }
+
+        function connectUser1() {
+            const url = getSocketUrl();
+            log(`🔌 User 1 connecting to ${url}...`, 'USER1');
+            
+            socket1 = io(url, {
+                transports: ['websocket', 'polling'],
+                timeout: 20000,
+                forceNew: true
+            });
+
+            setupSocketListeners(socket1, 'USER1');
+        }
+
+        function connectUser2() {
+            const url = getSocketUrl();
+            log(`🔌 User 2 connecting to ${url}...`, 'USER2');
+            
+            socket2 = io(url, {
+                transports: ['websocket', 'polling'],
+                timeout: 20000,
+                forceNew: true
+            });
+
+            setupSocketListeners(socket2, 'USER2');
+        }
+
+        function setupSocketListeners(socket, user) {
+            socket.on('connect', () => {
+                log(`✅ Socket connected successfully`, user);
+                updateStatus(user.toLowerCase(), 'Connected', 'online');
+                updateSocketInfo();
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection error: ${error.message}`, user);
+                updateStatus(user.toLowerCase(), 'Connection Failed', 'offline');
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`🔌 Socket disconnected: ${reason}`, user);
+                updateStatus(user.toLowerCase(), 'Disconnected', 'offline');
+            });
+
+            // Video call events
+            socket.on('incomingVideoCall', (data) => {
+                log(`📞 INCOMING CALL from ${data.callerName} (${data.callerId})`, user);
+                currentCallId = data.callId;
+                currentCallerId = data.callerId;
+                
+                // Show notification
+                const notificationDiv = document.getElementById(`${user.toLowerCase()}Notifications`);
+                notificationDiv.innerHTML = `
+                    <div class="notification">
+                        <strong>📞 Incoming Call!</strong><br>
+                        From: ${data.callerName}<br>
+                        Call ID: ${data.callId}<br>
+                        <button onclick="acceptCall()">Accept</button>
+                        <button onclick="rejectCall()">Reject</button>
+                    </div>
+                `;
+                
+                // Enable buttons
+                document.getElementById('acceptBtn').disabled = false;
+                document.getElementById('rejectBtn').disabled = false;
+            });
+
+            socket.on('callAccepted', (data) => {
+                log(`✅ Call accepted by ${data.recipientName}`, user);
+                const notificationDiv = document.getElementById(`${user.toLowerCase()}Notifications`);
+                notificationDiv.innerHTML = `<div class="notification">✅ Call accepted by ${data.recipientName}</div>`;
+            });
+
+            socket.on('callRejected', (data) => {
+                log(`❌ Call rejected by ${data.recipientName}`, user);
+                const notificationDiv = document.getElementById(`${user.toLowerCase()}Notifications`);
+                notificationDiv.innerHTML = `<div class="notification">❌ Call rejected by ${data.recipientName}</div>`;
+            });
+
+            socket.on('callInvitationSent', (data) => {
+                log(`📤 Call invitation sent to ${data.recipientId}`, user);
+            });
+
+            socket.on('callInvitationFailed', (data) => {
+                log(`❌ Call invitation failed: ${data.reason}`, user);
+                log(`❌ Failed call details: ${JSON.stringify(data)}`, user);
+                const notificationDiv = document.getElementById(`${user.toLowerCase()}Notifications`);
+                notificationDiv.innerHTML = `<div class="notification">❌ Call failed: ${data.reason}</div>`;
+            });
+
+            socket.on('registrationConfirmed', (data) => {
+                log(`✅ Registration confirmed: ${JSON.stringify(data)}`, user);
+            });
+
+            socket.on('incomingVideoCall', (data) => {
+                log(`📞 Incoming video call from ${data.callerName} (${data.callerId})`, user);
+                log(`📞 Call ID: ${data.callId}`, user);
+                
+                // Store call data for accept/reject
+                if (user === 'USER2') {
+                    currentCallId = data.callId;
+                    currentCallerId = data.callerId;
+                    currentCallerName = data.callerName;
+                    
+                    // Show notification
+                    const notificationDiv = document.getElementById('user2notifications');
+                    notificationDiv.innerHTML = `<div class="notification">📞 Incoming call from ${data.callerName}</div>`;
+                }
+            });
+
+            socket.on('currentOnlineUsers', (users) => {
+                log(`📊 Received ${users.length} online users`, user);
+            });
+
+            socket.on('userStatusUpdate', (data) => {
+                log(`👤 User status update: ${data.name} is ${data.isOnline ? 'online' : 'offline'}`, user);
+            });
+        }
+
+        function registerUser1() {
+            if (!socket1) {
+                log('❌ User 1 socket not connected', 'USER1');
+                return;
+            }
+
+            const userId = document.getElementById('user1Id').value;
+            const userName = document.getElementById('user1Name').value;
+
+            if (!userId || !userName) {
+                log('❌ Please enter both User 1 ID and Name', 'USER1');
+                return;
+            }
+
+            log(`👤 Registering User 1: ${userName} (${userId})`, 'USER1');
+            socket1.emit('registerForVideoCallNotifications', { userId, userName });
+            
+            // Enable call button after registration
+            document.getElementById('callBtn').disabled = false;
+            log(`✅ Call button enabled for User 1`, 'USER1');
+        }
+
+        function registerUser2() {
+            if (!socket2) {
+                log('❌ User 2 socket not connected', 'USER2');
+                return;
+            }
+
+            const userId = document.getElementById('user2Id').value;
+            const userName = document.getElementById('user2Name').value;
+
+            if (!userId || !userName) {
+                log('❌ Please enter both User 2 ID and Name', 'USER2');
+                return;
+            }
+
+            log(`👤 Registering User 2: ${userName} (${userId})`, 'USER2');
+            socket2.emit('registerForVideoCallNotifications', { userId, userName });
+            
+            // Enable accept/reject buttons after registration
+            document.getElementById('acceptBtn').disabled = false;
+            document.getElementById('rejectBtn').disabled = false;
+            log(`✅ Accept/Reject buttons enabled for User 2`, 'USER2');
+        }
+
+        function initiateCall() {
+            if (!socket1) {
+                log('❌ User 1 socket not connected', 'USER1');
+                return;
+            }
+
+            const callerId = document.getElementById('user1Id').value;
+            const callerName = document.getElementById('user1Name').value;
+            const recipientId = document.getElementById('user2Id').value;
+            const recipientName = document.getElementById('user2Name').value;
+
+            if (!callerId || !recipientId) {
+                log('❌ Please enter both caller and recipient IDs', 'USER1');
+                return;
+            }
+
+            const callId = `${callerId}-${recipientId}-${Date.now()}`;
+            
+            log(`📞 User 1 initiating call to ${recipientName} (${recipientId})`, 'USER1');
+            log(`📞 Call data: callerId=${callerId}, callerName=${callerName}, recipientId=${recipientId}, callId=${callId}`, 'USER1');
+            
+            socket1.emit('initiateVideoCall', {
+                callerId,
+                callerName,
+                recipientId,
+                callId
+            });
+
+            const notificationDiv = document.getElementById('user1notifications');
+            notificationDiv.innerHTML = `<div class="notification">📞 Calling ${recipientName}...</div>`;
+            
+            log(`✅ Call initiation request sent to server`, 'USER1');
+        }
+
+        function acceptCall() {
+            if (!socket2 || !currentCallId || !currentCallerId) {
+                log('❌ No incoming call to accept', 'USER2');
+                return;
+            }
+
+            const recipientId = document.getElementById('user2Id').value;
+            const recipientName = document.getElementById('user2Name').value;
+
+            log(`✅ User 2 accepting call from ${currentCallerId}`, 'USER2');
+            socket2.emit('acceptVideoCall', {
+                callId: currentCallId,
+                callerId: currentCallerId,
+                recipientId,
+                recipientName
+            });
+
+            // Disable buttons
+            document.getElementById('acceptBtn').disabled = true;
+            document.getElementById('rejectBtn').disabled = true;
+        }
+
+        function rejectCall() {
+            if (!socket2 || !currentCallId || !currentCallerId) {
+                log('❌ No incoming call to reject', 'USER2');
+                return;
+            }
+
+            const recipientId = document.getElementById('user2Id').value;
+            const recipientName = document.getElementById('user2Name').value;
+
+            log(`❌ User 2 rejecting call from ${currentCallerId}`, 'USER2');
+            socket2.emit('rejectVideoCall', {
+                callId: currentCallId,
+                callerId: currentCallerId,
+                recipientId,
+                recipientName,
+                reason: 'User declined'
+            });
+
+            // Disable buttons
+            document.getElementById('acceptBtn').disabled = true;
+            document.getElementById('rejectBtn').disabled = true;
+        }
+
+        function getServerInfo() {
+            log('📊 Requesting server info...', 'SYSTEM');
+            if (socket1) {
+                socket1.emit('requestOnlineUsers');
+            }
+            if (socket2) {
+                socket2.emit('requestOnlineUsers');
+            }
+        }
+
+        function testServerEndpoint() {
+            const url = getSocketUrl();
+            log(`🔍 Testing server endpoint: ${url}/api/video-call-test`, 'SYSTEM');
+            
+            fetch(`${url}/api/video-call-test`)
+                .then(response => response.json())
+                .then(data => {
+                    log(`✅ Server test successful: ${JSON.stringify(data)}`, 'SYSTEM');
+                })
+                .catch(error => {
+                    log(`❌ Server test failed: ${error.message}`, 'SYSTEM');
+                });
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            log('🚀 Video call notification test initialized', 'SYSTEM');
+            updateSocketInfo();
+        };
+    </script>
+</body>
+</html>

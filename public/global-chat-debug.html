@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Global Chat Debug Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFE066;
+        }
+        .status {
+            padding: 8px 15px;
+            border-radius: 10px;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .success { background: rgba(34, 197, 94, 0.3); border: 1px solid #22c55e; }
+        .error { background: rgba(239, 68, 68, 0.3); border: 1px solid #ef4444; }
+        .info { background: rgba(59, 130, 246, 0.3); border: 1px solid #3b82f6; }
+        .warning { background: rgba(245, 158, 11, 0.3); border: 1px solid #f59e0b; }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .big-button {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            margin: 5px 0;
+        }
+        input::placeholder, textarea::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .log {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .messages {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        
+        .message {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-left: 3px solid #4ade80;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Global Chat Debug Test</h1>
+        
+        <!-- Connection Status -->
+        <div class="section">
+            <div class="section-title">🔗 Connection Status</div>
+            <div id="connectionStatus">
+                <div class="info">🔄 Starting connection test...</div>
+            </div>
+            <button onclick="connectToGlobalChat()" class="big-button" id="connectBtn">Connect to Global Chat</button>
+        </div>
+
+        <!-- User Login -->
+        <div class="section">
+            <div class="section-title">👤 User Setup</div>
+            <input type="text" id="usernameInput" placeholder="Enter your username" value="DebugUser" />
+            <button onclick="loginUser()" class="big-button" id="loginBtn" disabled>Join as User</button>
+            <div id="userStatus"></div>
+        </div>
+
+        <!-- Send Message Test -->
+        <div class="section">
+            <div class="section-title">💬 Send Global Message</div>
+            <textarea id="messageInput" placeholder="Type your message here..." rows="3"></textarea>
+            <button onclick="sendGlobalMessage()" class="big-button" id="sendBtn" disabled>Send Message</button>
+            <div id="sendStatus"></div>
+        </div>
+
+        <!-- Received Messages -->
+        <div class="section">
+            <div class="section-title">📨 Received Messages</div>
+            <div id="messagesContainer" class="messages">
+                <div class="info">No messages yet...</div>
+            </div>
+            <button onclick="clearMessages()">Clear Messages</button>
+        </div>
+
+        <!-- Debug Log -->
+        <div class="section">
+            <div class="section-title">🔍 Debug Log</div>
+            <div id="debugLog" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        let currentUser = null;
+        let messageCount = 0;
+        
+        function log(message, type = 'info') {
+            const debugLog = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            debugLog.innerHTML += `<div class="${type}">${logEntry}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+
+        function updateStatus(elementId, message, className) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${className}">${message}</div>`;
+        }
+
+        function connectToGlobalChat() {
+            log('🔌 Connecting to global chat...', 'info');
+            updateStatus('connectionStatus', '🔄 Connecting...', 'info');
+            
+            try {
+                socket = io('https://192.168.1.4:3443', {
+                    secure: true,
+                    rejectUnauthorized: false,
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+
+                socket.on('connect', () => {
+                    log('✅ Socket connected successfully!', 'success');
+                    updateStatus('connectionStatus', '✅ Connected to server!', 'success');
+                    document.getElementById('connectBtn').textContent = 'Connected ✅';
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('loginBtn').disabled = false;
+                    
+                    // Join global room
+                    socket.emit('joinGlobalRoom');
+                    log('📡 Joined global chat room', 'info');
+                });
+
+                socket.on('disconnect', () => {
+                    log('🔌 Socket disconnected', 'warning');
+                    updateStatus('connectionStatus', '🔌 Disconnected', 'warning');
+                    document.getElementById('connectBtn').textContent = 'Connect to Global Chat';
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('loginBtn').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Connection error: ${error.message}`, 'error');
+                    updateStatus('connectionStatus', `❌ Connection failed: ${error.message}`, 'error');
+                });
+
+                // Listen for global messages
+                socket.on('globalMessage', (message) => {
+                    log(`📨 Received global message: ${message.text}`, 'success');
+                    addReceivedMessage(message);
+                });
+
+                // Debug: Listen to all events
+                socket.onAny((eventName, data) => {
+                    log(`🎧 Socket event: ${eventName}`, 'info');
+                });
+
+            } catch (error) {
+                log(`❌ Connection setup failed: ${error.message}`, 'error');
+                updateStatus('connectionStatus', `❌ Setup failed: ${error.message}`, 'error');
+            }
+        }
+
+        function loginUser() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if (!username) {
+                updateStatus('userStatus', '❌ Please enter a username', 'error');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                updateStatus('userStatus', '❌ Connect to server first', 'error');
+                return;
+            }
+
+            log(`👤 Logging in as: ${username}`, 'info');
+            updateStatus('userStatus', '🔄 Logging in...', 'info');
+
+            currentUser = {
+                id: Date.now().toString(),
+                name: username
+            };
+
+            // Emit user online event
+            socket.emit('userOnline', {
+                userId: currentUser.id,
+                name: currentUser.name
+            });
+
+            socket.emit('requestOnlineUsers');
+
+            socket.on('currentOnlineUsers', (users) => {
+                log(`📋 Online users: ${users.length}`, 'success');
+            });
+
+            socket.on('userStatusUpdate', (user) => {
+                log(`👥 User status: ${user.name} is ${user.isOnline ? 'online' : 'offline'}`, 'info');
+            });
+
+            updateStatus('userStatus', `✅ Logged in as ${username}`, 'success');
+            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('sendBtn').disabled = false;
+        }
+
+        function sendGlobalMessage() {
+            const messageText = document.getElementById('messageInput').value.trim();
+            if (!messageText) {
+                updateStatus('sendStatus', '❌ Please enter a message', 'error');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                updateStatus('sendStatus', '❌ Not connected to server', 'error');
+                return;
+            }
+
+            if (!currentUser) {
+                updateStatus('sendStatus', '❌ Please login first', 'error');
+                return;
+            }
+
+            log(`📤 Sending global message: "${messageText}"`, 'info');
+            updateStatus('sendStatus', '🔄 Sending message...', 'info');
+
+            const messageData = {
+                text: messageText,
+                senderId: currentUser.id,
+                senderName: currentUser.name,
+                timestamp: new Date().toISOString(),
+                media: []
+            };
+
+            log(`📝 Message data: ${JSON.stringify(messageData)}`, 'info');
+
+            try {
+                socket.emit('sendGlobalMessage', messageData);
+                log('✅ Message sent via socket', 'success');
+                updateStatus('sendStatus', '✅ Message sent!', 'success');
+                
+                // Clear the input
+                document.getElementById('messageInput').value = '';
+                
+                // Add to our own message display
+                addReceivedMessage({
+                    _id: 'local-' + Date.now(),
+                    text: messageText,
+                    senderName: currentUser.name + ' (you)',
+                    timestamp: new Date().toISOString()
+                });
+                
+            } catch (error) {
+                log(`❌ Failed to send message: ${error.message}`, 'error');
+                updateStatus('sendStatus', `❌ Send failed: ${error.message}`, 'error');
+            }
+        }
+
+        function addReceivedMessage(message) {
+            const container = document.getElementById('messagesContainer');
+            
+            // Clear "no messages" text on first message
+            if (messageCount === 0) {
+                container.innerHTML = '';
+            }
+            
+            messageCount++;
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            messageEl.innerHTML = `
+                <strong>${message.senderName || 'Unknown'}</strong>
+                <div>${message.text || 'No content'}</div>
+                <small>${new Date(message.timestamp).toLocaleTimeString()}</small>
+            `;
+            
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearMessages() {
+            document.getElementById('messagesContainer').innerHTML = '<div class="info">No messages yet...</div>';
+            messageCount = 0;
+        }
+
+        // Auto-start connection
+        window.onload = function() {
+            log('🚀 Global Chat Debug Test initialized', 'info');
+            log('Device: ' + navigator.userAgent, 'info');
+            
+            setTimeout(() => {
+                connectToGlobalChat();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>
